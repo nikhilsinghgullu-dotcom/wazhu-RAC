@@ -1,5 +1,5 @@
 
-name: Wazuh RAC Validation
+name: Wazuh RAC Validation and Deployment
 
 on:
   push:
@@ -33,3 +33,29 @@ jobs:
 
       - name: Check duplicate rule IDs
         run: python3 scripts/check_rule_ids.py
+
+  deploy:
+    name: Deploy Rules to Wazuh
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare rules for deployment
+        run: |
+          mkdir -p /home/wazhu/wazhu-rac-deploy/rules
+          find /home/wazhu/wazhu-rac-deploy/rules \
+            -maxdepth 1 -type f -name '*.xml' -delete
+          cp rules/*.xml /home/wazhu/wazhu-rac-deploy/rules/
+
+      - name: Deploy to Wazuh Manager
+        run: |
+          sudo -n /usr/local/sbin/deploy-wazhu-rules
+
+      - name: Verify deployment
+        run: |
+          sudo systemctl is-active wazuh-manager
+          sudo ls -l /var/ossec/etc/rules/
