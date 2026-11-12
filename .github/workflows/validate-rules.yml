@@ -1,0 +1,35 @@
+
+name: Wazuh RAC Validation
+
+on:
+  push:
+    branches:
+      - main
+      - feature/rac-validation
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Wazuh Rules
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Python version
+        run: python3 --version
+
+      - name: Validate XML syntax
+        run: python3 scripts/validate_xml.py
+
+      - name: Check duplicate rule IDs
+        run: python3 scripts/check_rule_ids.py
