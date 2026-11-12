@@ -46,10 +46,22 @@ jobs:
 
       - name: Prepare rules for deployment
         run: |
+          set -e
+
           mkdir -p /home/wazhu/wazhu-rac-deploy/rules
+
           find /home/wazhu/wazhu-rac-deploy/rules \
             -maxdepth 1 -type f -name '*.xml' -delete
+
+          if ! compgen -G "rules/*.xml" > /dev/null; then
+            echo "ERROR: No XML rule files found"
+            exit 1
+          fi
+
           cp rules/*.xml /home/wazhu/wazhu-rac-deploy/rules/
+
+          echo "Rules prepared for deployment:"
+          ls -l /home/wazhu/wazhu-rac-deploy/rules/
 
       - name: Deploy to Wazuh Manager
         run: |
@@ -57,5 +69,14 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sudo systemctl is-active wazuh-manager
-          sudo ls -l /var/ossec/etc/rules/
+          set -e
+
+          systemctl is-active --quiet wazuh-manager
+
+          test -s /var/ossec/etc/rules/custom_ssh_rules.xml
+
+          echo "Wazuh Manager is active"
+          echo "Deployed rules:"
+          ls -l /var/ossec/etc/rules/
+
+          echo "Wazuh deployment verification successful"
