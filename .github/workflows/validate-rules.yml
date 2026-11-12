@@ -17,6 +17,8 @@ permissions:
   contents: read
 
 jobs:
+
+  # JOB 1: VALIDATE WAZUH RULES
   validate:
     name: Validate Wazuh Rules
     runs-on: [self-hosted, Linux, X64]
@@ -34,49 +36,83 @@ jobs:
       - name: Check duplicate rule IDs
         run: python3 scripts/check_rule_ids.py
 
+      - name: Validation successful
+        run: |
+          echo "================================"
+          echo "WAZUH RULE VALIDATION SUCCESSFUL"
+          echo "================================"
+
+  # JOB 2: DEPLOY RULES TO WAZUH
   deploy:
     name: Deploy Rules to Wazuh
     needs: validate
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+
+      # CHECKOUT REPOSITORY
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # PREPARE DEPLOYMENT FILES
       - name: Prepare rules for deployment
         run: |
           set -e
 
-          mkdir -p /home/wazhu/wazhu-rac-deploy/rules
+          STAGING="/home/wazhu/wazhu-rac-deploy/rules"
 
-          find /home/wazhu/wazhu-rac-deploy/rules \
-            -maxdepth 1 -type f -name '*.xml' -delete
+          echo "Preparing Wazuh deployment directory..."
+
+          mkdir -p "$STAGING"
+
+          find "$STAGING" \
+            -maxdepth 1 \
+            -type f \
+            -name '*.xml' \
+            -delete
 
           if ! compgen -G "rules/*.xml" > /dev/null; then
             echo "ERROR: No XML rule files found"
             exit 1
           fi
 
-          cp rules/*.xml /home/wazhu/wazhu-rac-deploy/rules/
+          cp rules/*.xml "$STAGING/"
 
-          echo "Rules prepared for deployment:"
-          ls -l /home/wazhu/wazhu-rac-deploy/rules/
+          echo "Rules prepared successfully:"
+          ls -lh "$STAGING/"
 
+      # DEPLOY RULES
       - name: Deploy to Wazuh Manager
-        run: |
-          sudo -n /usr/local/sbin/deploy-wazhu-rules
-
-      - name: Verify deployment
         run: |
           set -e
 
-          systemctl is-active --quiet wazuh-manager
+          echo "Starting Wazuh RAC deployment..."
 
-          test -s /var/ossec/etc/rules/custom_ssh_rules.xml
+          sudo -n /usr/local/sbin/deploy-wazhu-rules
 
-          echo "Wazuh Manager is active"
-          echo "Deployed rules:"
-          ls -l /var/ossec/etc/rules/
+          echo "Wazuh deployment script completed successfully"
 
-          echo "Wazuh deployment verification successful"
+      # VERIFY DEPLOYMENT
+      - name: Verify Wazuh deployment
+        run: |
+          set -e
+
+          echo "Starting Wazuh deployment verification..."
+
+          sudo -n /usr/local/sbin/verify-wazhu-rules
+
+          echo "Wazuh deployment verification completed successfully"
+
+      # FINAL DEPLOYMENT STATUS
+      - name: Deployment successful
+        run: |
+          echo "========================================"
+          echo "WAZUH RAC DEPLOYMENT SUCCESSFUL"
+          echo "========================================"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Commit: $GITHUB_SHA"
+          echo "========================================"
